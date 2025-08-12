@@ -87,5 +87,6 @@ struct Convert: ParsableCommand {
 
         try shellOut(to: "/usr/bin/sips",
                      arguments: ["-s", "format", "heic", file.path, "--out", heicPath])
+        try file.delete()
     }
 }
