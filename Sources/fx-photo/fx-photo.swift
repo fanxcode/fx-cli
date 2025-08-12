@@ -4,7 +4,8 @@ import ArgumentParser
 
 @main
 struct fx_photo: ParsableCommand {
-    static let configuration: CommandConfiguration = CommandConfiguration(
+    // ArgumentParser提供的方法，直接写好配置就可以配置命令行
+    static let configuration = CommandConfiguration(
         commandName: "fx-photo",
         abstract: "图片处理工具",
         discussion: """
@@ -16,7 +17,7 @@ struct fx_photo: ParsableCommand {
         version: "1.0.0",                         // 可选 --version
         subcommands: [
             Convert.self,                         // fx-photo convert ...
-            Append.self                           // fx-photo append ...
+//            Append.self                           // fx-photo append ...
         ],
         defaultSubcommand: nil
     )

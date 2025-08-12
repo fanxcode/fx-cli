@@ -1,6 +1,33 @@
 {
-  "originHash" : "e531aa5844c48a56df6695be87d4abdff8fe6095e94ebd26abc4dc3e38c8d5b7",
+  "originHash" : "0023c66b65788577bb4e45af87b704c368e92b5655054a222235ac31a823d8c3",
   "pins" : [
+    {
+      "identity" : "files",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/JohnSundell/Files.git",
+      "state" : {
+        "revision" : "e85f2b4a8dfa0f242889f45236f3867d16e40480",
+        "version" : "4.3.0"
+      }
+    },
+    {
+      "identity" : "rainbow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/onevcat/Rainbow.git",
+      "state" : {
+        "revision" : "16da5c62dd737258c6df2e8c430f8a3202f655a7",
+        "version" : "4.2.0"
+      }
+    },
+    {
+      "identity" : "shellout",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/JohnSundell/ShellOut.git",
+      "state" : {
+        "revision" : "e1577acf2b6e90086d01a6d5e2b8efdaae033568",
+        "version" : "2.3.0"
+      }
+    },
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
@@ -8,6 +35,15 @@
       "state" : {
         "revision" : "309a47b2b1d9b5e991f36961c983ecec72275be3",
         "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
       }
     }
   ],
