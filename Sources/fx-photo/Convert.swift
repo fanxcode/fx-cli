@@ -85,8 +85,12 @@ struct Convert: ParsableCommand {
         let heicPath = heicUrl.path
         _ = try Folder(path: heicUrl.deletingLastPathComponent().path)
 
+        // 给路径加引号，防止空格、括号、中文被 shell 误解析
+        let safeInput = "\"\(file.path)\""
+        let safeOutput = "\"\(heicPath)\""
+        
         try shellOut(to: "/usr/bin/sips",
-                     arguments: ["-s", "format", "heic", file.path, "--out", heicPath])
+                     arguments: ["-s", "format", "heic", safeInput, "--out", safeOutput])
         try file.delete()
     }
 }
