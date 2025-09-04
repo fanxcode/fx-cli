@@ -17,6 +17,7 @@ struct fx_photo: ParsableCommand {
         version: "1.0.0",                         // 可选 --version
         subcommands: [
             Convert.self,                         // fx-photo convert ...
+            Time.self,
 //            Append.self                           // fx-photo append ...
         ],
         defaultSubcommand: nil
