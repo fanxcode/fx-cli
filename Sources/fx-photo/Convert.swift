@@ -16,7 +16,7 @@ import ShellOut
 struct Convert: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "convert",
-        abstract: "将 JPG/JPEG/PNG 图片转换为 HEIC 格式（支持目录递归和多线程处理）"
+        abstract: "将 JPG/JPEG/PNG/WEBP 图片转换为 HEIC 格式（支持目录递归和多线程处理）"
     )
 
     @Argument(help: "图片文件或文件夹路径")
@@ -73,7 +73,7 @@ struct Convert: ParsableCommand {
     }
 
     private func collectImages(from folder: Folder) throws -> [File] {
-        let validExts = ["jpg", "jpeg", "png"]
+        let validExts = ["jpg", "jpeg", "png", "webp"]
         return folder.files.recursive.filter { file in
             file.extension.map { validExts.contains($0.lowercased()) } ?? false
         }
