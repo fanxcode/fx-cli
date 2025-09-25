@@ -30,23 +30,26 @@ struct Convert: ParsableCommand {
     }
 
     func run() throws {
-        let targetFolder = try? Folder(path: path)
-        let targetFile = try? File(path: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            logger.error(Logger.Message(stringLiteral: "路径不存在: \(path)".red))
+            throw ValidationError("路径不存在: \(path)".red)
+        }
 
-        if let folder = targetFolder {
+        if let folder = try? Folder(path: path) {
             let images = try collectImages(from: folder)
             if images.isEmpty {
                 logger.warning(Logger.Message(stringLiteral: "没有找到可转换的图片".yellow))
                 return
             }
             try convertImages(images, threadCount: threads ?? ProcessInfo.processInfo.processorCount)
-        } else if let file = targetFile {
+            return
+        }
+
+        if let file = try? File(path: path) {
             logger.info(Logger.Message(stringLiteral: "开始转换 1 张图片".green))
             let start = Date()
             try convertToHEIC(file)
             logger.info(Logger.Message(stringLiteral: "转换完成 ✅ 用时 \(String(format: "%.2f", Date().timeIntervalSince(start))) 秒".green))
-        } else {
-            throw ValidationError("路径不存在: \(path)".red)
         }
     }
 
@@ -82,15 +85,10 @@ struct Convert: ParsableCommand {
     private func convertToHEIC(_ file: File) throws {
         let url = URL(fileURLWithPath: file.path)
         let heicUrl = url.deletingPathExtension().appendingPathExtension("heic")
-        let heicPath = heicUrl.path
         _ = try Folder(path: heicUrl.deletingLastPathComponent().path)
-
-        // 给路径加引号，防止空格、括号、中文被 shell 误解析
-        let safeInput = "\"\(file.path)\""
-        let safeOutput = "\"\(heicPath)\""
-        
         try shellOut(to: "/usr/bin/sips",
-                     arguments: ["-s", "format", "heic", safeInput, "--out", safeOutput])
+                     arguments: ["-s", "format", "heic", file.path, "--out", heicUrl.path]
+        )
         try file.delete()
     }
 }
