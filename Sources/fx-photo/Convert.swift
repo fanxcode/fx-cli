@@ -85,10 +85,20 @@ struct Convert: ParsableCommand {
     private func convertToHEIC(_ file: File) throws {
         let url = URL(fileURLWithPath: file.path)
         let heicUrl = url.deletingPathExtension().appendingPathExtension("heic")
+        
+        // 确保输出目录存在
         _ = try Folder(path: heicUrl.deletingLastPathComponent().path)
-        try shellOut(to: "/usr/bin/sips",
-                     arguments: ["-s", "format", "heic", file.path, "--out", heicUrl.path]
-        )
-        try file.delete()
+        
+        let inputPath = "\"\(file.url.path)\""
+        let outputPath = "\"\(heicUrl.path)\""
+        
+        try shellOut(to: "/usr/bin/sips", arguments: ["-s", "format", "heic", inputPath, "--out", outputPath])
+        
+        // 检查文件是否生成，再删除原文件
+        if FileManager.default.fileExists(atPath: heicUrl.path) {
+            try file.delete()
+        } else {
+            logger.error(Logger.Message(stringLiteral: "转换失败，未生成 HEIC: \(file.path)".red))
+        }
     }
 }
