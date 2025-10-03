@@ -3,18 +3,19 @@
 //  fx-cli
 //
 //  Created by fan xian on 2025/9/4.
-//
+
 
 import ArgumentParser
 import Foundation
-import Files
+@preconcurrency import Files
 import Logging
-import ImageIO
+import Rainbow
+import ShellOut
 
 struct Time: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "time",
-        abstract: "修改图片的 EXIF 创建时间，支持文件夹顺序递增"
+        abstract: "修改图片 EXIF 创建时间（支持目录，按文件名排序，每张图片时间依次 +1s）"
     )
 
     @Argument(help: "初始时间，格式：yyyy-MM-dd HH:mm:ss")
@@ -23,111 +24,83 @@ struct Time: ParsableCommand {
     @Argument(help: "图片文件或文件夹路径")
     var path: String
 
-    @Option(name: .shortAndLong, help: "时间递增步长（秒），默认为 1 秒")
-    var step: Int = 1
+    private var logger: Logger {
+        Logger(label: "fx-photo.time")
+    }
 
     func run() throws {
-        let logger = Logger(label: "fx-photo-time")
-
-        // 解析初始时间
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-
-        guard let baseDate = formatter.date(from: datetime) else {
-            throw ValidationError("时间格式错误，请使用 \"yyyy-MM-dd HH:mm:ss\"")
+        guard let baseDate = DateFormatter.cli.date(from: datetime) else {
+            throw ValidationError("时间格式错误，请使用 yyyy-MM-dd HH:mm:ss".red)
         }
 
-        var currentDate = baseDate
+        guard FileManager.default.fileExists(atPath: path) else {
+            logger.error(Logger.Message(stringLiteral: "路径不存在: \(path)".red))
+            throw ValidationError("路径不存在: \(path)".red)
+        }
 
-        let fm = FileManager.default
-        var isDir: ObjCBool = false
-        if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
-            // 文件夹
-            let folder = try Folder(path: path)
-            let files = folder.files
-                .filter { isSupported(file: $0) }
-                .sorted { lhs, rhs in
-                    let (base1, num1) = splitName(lhs.nameExcludingExtension)
-                    let (base2, num2) = splitName(rhs.nameExcludingExtension)
-
-                    if base1 == base2 {
-                        return num1 < num2
-                    } else {
-                        return base1 < base2
-                    }
-                }
-
-            for file in files {
-                try updateExif(for: file, at: currentDate, logger: logger)
-                currentDate = currentDate.addingTimeInterval(TimeInterval(step))
+        if let folder = try? Folder(path: path) {
+            let images = try collectImages(from: folder)
+            if images.isEmpty {
+                logger.warning(Logger.Message(stringLiteral: "没有找到可修改的图片".yellow))
+                return
             }
-        } else {
-            // 单个文件
-            let file = try File(path: path)
-            try updateExif(for: file, at: currentDate, logger: logger)
+            try updateImages(images, baseDate: baseDate)
+            return
+        }
+
+        if let file = try? File(path: path) {
+            try updateExifTime(file: file, date: baseDate)
         }
     }
-}
 
-// MARK: - EXIF 修改
-private func updateExif(for file: File, at date: Date, logger: Logger) throws {
-    let url = URL(fileURLWithPath: file.path)
-    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let type = CGImageSourceGetType(source) else {
-        logger.error("无法读取文件: \(file.name)")
-        return
+    // 递归收集支持的图片
+    private func collectImages(from folder: Folder) throws -> [File] {
+        let validExts = ["jpg", "jpeg", "png", "heic", "tiff"]
+        return folder.files.recursive
+            .filter { file in validExts.contains(file.extension?.lowercased() ?? "") }
+            .sorted { $0.name < $1.name }
     }
 
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    let dateString = formatter.string(from: date)
+    // 顺序更新每张图片的时间
+    private func updateImages(_ images: [File], baseDate: Date) throws {
+        var currentDate = baseDate
+        let start = Date()
+        logger.info(Logger.Message(stringLiteral: "开始修改 \(images.count) 张图片的 EXIF 时间".cyan))
 
-    let metadata = [
-        kCGImagePropertyExifDictionary as String: [
-            kCGImagePropertyExifDateTimeOriginal as String: dateString,
-            kCGImagePropertyExifDateTimeDigitized as String: dateString
-        ],
-        kCGImagePropertyTIFFDictionary as String: [
-            kCGImagePropertyTIFFDateTime as String: dateString
-        ]
-    ] as CFDictionary
-
-    let destData = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(destData, type, 1, nil) else {
-        logger.error("无法创建目标文件: \(file.name)")
-        return
-    }
-
-    CGImageDestinationAddImageFromSource(destination, source, 0, metadata)
-    guard CGImageDestinationFinalize(destination) else {
-        logger.error("保存文件失败: \(file.name)")
-        return
-    }
-
-    try destData.write(to: url)
-    logger.info("已更新 \(file.name) 时间为 \(dateString)")
-}
-
-// MARK: - 工具函数
-private func isSupported(file: File) -> Bool {
-    let ext = file.extension?.lowercased() ?? ""
-    return ["jpg", "jpeg", "png", "heic"].contains(ext)
-}
-
-/// 拆分文件名 -> (基础名, 数字后缀)，没有数字时 num = 0
-private func splitName(_ name: String) -> (String, Int) {
-    let pattern = #"^(.*?)(?:-(\d+))?$"#
-    if let regex = try? NSRegularExpression(pattern: pattern),
-       let match = regex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) {
-        let baseRange = Range(match.range(at: 1), in: name)!
-        let base = String(name[baseRange])
-        if let numRange = Range(match.range(at: 2), in: name),
-           let num = Int(name[numRange]) {
-            return (base, num)
+        for (index, file) in images.enumerated() {
+            try updateExifTime(file: file, date: currentDate)
+            logger.info(Logger.Message(stringLiteral: "修改成功 (\(index + 1)/\(images.count)): \(file.name)".green))
+            currentDate.addTimeInterval(1)
         }
-        return (base, 0)
+
+        logger.info(Logger.Message(stringLiteral: "全部完成 ✅ 用时 \(String(format: "%.2f", Date().timeIntervalSince(start))) 秒".green))
     }
-    return (name, 0)
+
+    // 调用 exiftool 修改 EXIF 时间（安全处理路径和空格）
+    private func updateExifTime(file: File, date: Date) throws {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let dateStr = formatter.string(from: date)
+
+        let filePath = file.url.standardized.path
+
+        // 注意: 参数带空格必须加单引号
+        let allDatesArg = "-AllDates='\(dateStr)'"
+
+        try shellOut(
+            to: "/opt/homebrew/bin/exiftool",
+            arguments: ["-overwrite_original", allDatesArg, filePath]
+        )
+    }
+}
+
+// MARK: - 日期格式工具
+extension DateFormatter {
+    static var cli: DateFormatter {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        df.locale = Locale(identifier: "en_US_POSIX")
+        return df
+    }
 }
