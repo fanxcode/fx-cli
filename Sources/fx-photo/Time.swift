@@ -84,13 +84,13 @@ struct Time: ParsableCommand {
         let dateStr = formatter.string(from: date)
 
         let filePath = file.url.standardized.path
-
+        let inputPath = "\"\(filePath)\""
         // 注意: 参数带空格必须加单引号
         let allDatesArg = "-AllDates='\(dateStr)'"
 
         try shellOut(
             to: "/opt/homebrew/bin/exiftool",
-            arguments: ["-overwrite_original", allDatesArg, filePath]
+            arguments: ["-overwrite_original", allDatesArg, inputPath]
         )
     }
 }
